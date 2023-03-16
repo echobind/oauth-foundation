@@ -1,0 +1,26 @@
+---
+to: cells/<%= [h.inflection.camelize(h.dirName(name)), h.camelizedBaseName(name)].filter(Boolean).join('/') %>.tsx
+---
+<% formattedPath = h.camelizedPathName(name) -%>
+<% component = h.camelizedBaseName(name) -%>
+import { Spinner, Text } from '@chakra-ui/react';
+
+import { trpc, inferQueryOutput } from '@/utils/trpc';
+
+export const Loading = () => <Spinner />;
+export const Error = () => <Text>Error. See dev tools.</Text>;
+export const Empty = () => <Text>No data.</Text>;
+
+export const Success = (props: inferQueryOutput<'user', 'me'>) => {
+  return <Text>Awesome! {props.email}</Text>;
+};
+
+export const <%= component %>Cell = () => {
+  const { data, isLoading, isError } = trpc.user.me.useQuery();
+
+  if (isLoading) return <Loading />;
+  if (isError) return <Error />;
+  if (data) return <Success {...data} />;
+
+  return <Empty />;
+};

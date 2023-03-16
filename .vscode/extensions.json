@@ -1,0 +1,14 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "eamodio.gitlens",
+    "mgmcdermott.vscode-language-babel",
+    "wix.vscode-import-cost",
+    "pflannery.vscode-versionlens",
+    "prisma.prisma",
+    "DavidAnson.vscode-markdownlint",
+    "yzhang.markdown-all-in-one",
+    "ms-playwright.playwright"
+  ],
+  "unwantedRecommendations": []
+}

@@ -1,0 +1,38 @@
+---
+to: tests/requests/<%= name %>.test.ts
+---
+<% formattedPath = name -%>
+<% model = name.split('/')[0] %>
+<% section = h.baseName(name) -%>
+<% upper = h.inflection.camelize(model, false) -%>
+import { trpcRequest, resetDB, disconnect } from '@/tests/helpers';
+import { <%= upper %>Factory } from '@/tests/factories/<%= model %>';
+
+beforeEach(async () => resetDB());
+afterAll(async () => disconnect());
+
+describe('<%= upper %> <%= section %> mutation', () => {
+  describe('invalid email', () => {
+    it('returns an Authentication error', async () => {
+      await <%= upper %>Factory.create({ email: 'foo@wee.net' });
+
+      const variables = { email: 'fake', password: 'fake' };
+
+      await expect(
+        trpcRequest().user.login(variables)
+      ).rejects.toThrowErrorMatchingInlineSnapshot();
+    });
+  });
+
+  describe('as a user', () => {
+    it('does something expected', async () => {
+
+      const user = await UserFactory.create();
+      const <%= model %> = await <%= upper %>Factory.create();
+
+      const { email, roles } = await trpcRequest(user).user.me();
+
+      expect({ email, roles }).toEqual({ email: user.email, roles: user.roles });
+    })
+  })
+});

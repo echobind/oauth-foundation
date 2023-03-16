@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.json",
+  "exclude": [],
+  "include": ["**/*.d.ts", "**/*.ts", "../playwrightExamples/demo-todo-app.spec.ts"]
+}

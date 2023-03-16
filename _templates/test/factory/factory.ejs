@@ -1,0 +1,46 @@
+---
+to: tests/factories/<%= name %>.ts
+---
+<% single = h.inflection.singularize(name) -%>
+<% camelized = h.inflection.camelize(name) -%>
+import { Prisma } from '@prisma/client';
+// import Chance from 'chance';
+
+import { prisma } from '@/lib/prisma';
+
+// const chance = new Chance();
+
+export const <%= camelized %>Factory = {
+  build: (
+    args: Partial<Prisma.<%= camelized %>CreateArgs['data']> = {},
+    include: Prisma.<%= camelized %>CreateArgs['include'] = {}
+  ): Prisma.UserCreateArgs => {
+    const password = args.password ? hashPassword(args.password) : hashPassword('test1234');
+
+    return {
+      data: {
+        email: chance.email(),
+        profile: {
+          create: {
+            firstName: chance.first(),
+            lastName: chance.last(),
+          },
+        },
+        ...args,
+        password,
+      },
+
+      // return profile for Next-Auth
+      include: { ...include, profile: true },
+    };
+  },
+
+  create: async (
+    args: Partial<Prisma.<%= camelized %>CreateArgs['data']> = {},
+    include: Prisma.<%= camelized %>CreateArgs['include'] = {}
+  ) => {
+    const args = <%= camelized %>Factory.build(args, include);
+    const <%= single %> = await prisma.<%= single %>.create(args);
+    return <%= single %>;
+  },
+};
