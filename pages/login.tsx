@@ -3,6 +3,7 @@ import Head from 'next/head';
 
 import { CenteredBoxForm } from '@/components/CenteredBoxForm';
 import { LoginForm } from '@/components/auth/LoginForm';
+import { AppWithAuth } from '@/components/AppWithAuth';
 
 function LoginPage() {
   return (
@@ -11,9 +12,11 @@ function LoginPage() {
         <title>LoginPage</title>
       </Head>
 
-      <CenteredBoxForm>
-        <LoginForm />
-      </CenteredBoxForm>
+      <AppWithAuth>
+        <CenteredBoxForm>
+          <LoginForm />
+        </CenteredBoxForm>
+      </AppWithAuth>
     </>
   );
 }

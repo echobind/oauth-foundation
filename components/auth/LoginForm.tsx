@@ -56,7 +56,11 @@ export function LoginForm() {
       if (response.ok === true) {
         toast({ status: 'success', title: 'Welcome!' });
 
-        return router.push('/');
+        return router.push(
+          typeof router.query.return_url === 'string'
+            ? decodeURIComponent(router.query.return_url)
+            : '/'
+        );
       }
     }
 
@@ -120,7 +124,14 @@ export function LoginForm() {
       <Flex marginTop={8} justifyContent="center">
         <Text color="gray.500">
           New User?{' '}
-          <Link href="/signup" color="muted">
+          <Link
+            href={`/signup${
+              typeof router.query.return_url === 'string'
+                ? `?return_url=${router.query.return_url}`
+                : ''
+            }`}
+            color="muted"
+          >
             Sign Up
           </Link>
         </Text>

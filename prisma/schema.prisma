@@ -23,16 +23,18 @@ model Profile {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  emailVerified DateTime?
-  password      String?
-  roles         Role[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  profile       Profile?
-  accounts      Account[]
-  sessions      Session[]
+  id                     String                   @id @default(cuid())
+  email                  String                   @unique
+  emailVerified          DateTime?
+  password               String?
+  roles                  Role[]
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  profile                Profile?
+  accounts               Account[]
+  sessions               Session[]
+  OAuthAccessToken       OAuthAccessToken[]
+  OAuthAuthorizationCode OAuthAuthorizationCode[]
 }
 
 model Account {
@@ -73,4 +75,95 @@ model VerificationToken {
 enum Role {
   ADMIN
   USER
+}
+
+model OAuthAccessToken {
+  id                    Int                     @id @default(autoincrement())
+  createdAt             DateTime                @default(now())
+  access_token          String                  @unique
+  refresh_token         String                  @unique
+  user_id               String?
+  client_id             String?
+  OAuthApp              OAuthApp?               @relation(fields: [client_id], references: [client_id], onDelete: Cascade)
+  User                  User?                   @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  OAuthAccessTokenScope OAuthAccessTokenScope[]
+  OAuthDeviceRequest    OAuthDeviceRequest[]
+}
+
+model OAuthAccessTokenScope {
+  id               Int               @id @default(autoincrement())
+  scope            String?
+  accessToken_ID   Int?
+  OAuthAccessToken OAuthAccessToken? @relation(fields: [accessToken_ID], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  OAuthScope       OAuthScope?       @relation(fields: [scope], references: [scope], onDelete: Cascade)
+}
+
+model OAuthApp {
+  id                     Int                      @id(map: "OauthApp_pkey") @default(autoincrement())
+  client_id              String                   @unique(map: "OauthApp_client_id_key")
+  client_secret          String
+  app_name               String
+  app_icon_url           String?
+  app_homepage_url       String?
+  app_description        String?
+  OAuthAccessToken       OAuthAccessToken[]
+  OAuthAuthorizationCode OAuthAuthorizationCode[]
+  OAuthCallbackURL       OAuthCallbackURL[]
+  OAuthDeviceRequest     OAuthDeviceRequest[]
+}
+
+model OAuthAuthorizationCode {
+  id                      Int                       @id @default(autoincrement())
+  code                    String                    @unique
+  user_id                 String?
+  client_id               String?
+  code_challenge          String?
+  code_challenge_method   String?                   @default("S256")
+  OAuthApp                OAuthApp?                 @relation(fields: [client_id], references: [client_id], onDelete: Cascade)
+  User                    User?                     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  OAuthAuthorizationScope OAuthAuthorizationScope[]
+}
+
+model OAuthAuthorizationScope {
+  id                     Int                     @id(map: "OAuthAuthorizationScopes_pkey") @default(autoincrement())
+  scope                  String?
+  authorizationScope_id  Int?
+  OAuthAuthorizationCode OAuthAuthorizationCode? @relation(fields: [authorizationScope_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "OAuthAuthorizationScopes_authorizationScope_id_fkey")
+  OAuthScope             OAuthScope?             @relation(fields: [scope], references: [scope], onDelete: Cascade, map: "OAuthAuthorizationScopes_scope_fkey")
+}
+
+model OAuthCallbackURL {
+  id           Int       @id(map: "OauthCallbackURL_pkey") @default(autoincrement())
+  callback_url String
+  oauthAppId   Int?
+  OAuthApp     OAuthApp? @relation(fields: [oauthAppId], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "OauthCallbackURL_oauthAppId_fkey")
+}
+
+model OAuthDeviceRequest {
+  id                      Int                       @id @default(autoincrement())
+  device_code             String
+  user_code               String
+  expires_at              DateTime                  @db.Timestamp(6)
+  client_id               String?
+  access_token            String?
+  OAuthAccessToken        OAuthAccessToken?         @relation(fields: [access_token], references: [access_token], onUpdate: NoAction)
+  OAuthApp                OAuthApp?                 @relation(fields: [client_id], references: [client_id], onDelete: Cascade)
+  OAuthDeviceRequestScope OAuthDeviceRequestScope[]
+}
+
+model OAuthDeviceRequestScope {
+  id                 Int                 @id @default(autoincrement())
+  scope              String?
+  deviceRequest_id   Int?
+  OAuthDeviceRequest OAuthDeviceRequest? @relation(fields: [deviceRequest_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  OAuthScope         OAuthScope?         @relation(fields: [scope], references: [scope], onDelete: Cascade)
+}
+
+model OAuthScope {
+  id                      Int                       @id(map: "OAuthScopes_pkey") @default(autoincrement())
+  scope                   String                    @unique(map: "OAuthScopes_scope_key")
+  description             String
+  OAuthAccessTokenScope   OAuthAccessTokenScope[]
+  OAuthAuthorizationScope OAuthAuthorizationScope[]
+  OAuthDeviceRequestScope OAuthDeviceRequestScope[]
 }

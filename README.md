@@ -1,406 +1,43 @@
-# oauth-foundation
+# OAuth Foundation
 
-<img alt="CI STATUS" src="https://github.com/<OWNER>/<REPOSITORY>/actions/workflows/main.yml/badge.svg"/>
+A repository showing a minimal implementation of an OAuth provider. Currently just the `authorization_code` and `password` flows are implemented, but more could be added.
 
-## Getting Started Tutorial
+If you intend to implement this in your own repo, be sure to check out [OAuth2 Simplified (the blog post)](https://aaronparecki.com/oauth-2-simplified/) and also [OAuth2 Simplified (the book)](https://www.oauth.com) which are full of a wealth of knowledge.
 
-This checklist and mini-tutorial will make sure you make the most of your shiny new Bison app.
+The specific parts of this implementation that might be interesting to you:
 
-## Migrate your database and start the dev server
+- `prisma/schema.prisma` - Shows how all of the OAuth data is modeled.
+- `prisma/seeds/oauth/index.ts` - Generates the minimal data needed to set up an OAuth app.
+- `pages/auth.tsx` - A page for requesting an authenticated user grant access to an app.
+- `pages/api/authComplete.ts` - After a user grants authorization requests, this stores the authorization code info in the database.
+- `app/token/route.ts` - Takes a user-provided authorization code and exchanges it for an auth token.
+- `lib/auth/ts` - Checks an auth token to see if its valid.
+- `pages/api/auth/me.ts` - Takes an auth token and provides user information for the corresponding user.
 
-- [ ] Run `yarn setup:dev` to prep and migrate your local database, as well as
-  generate the prisma client. If this fails, make sure you have Postgres running and
-  the generated `DATABASE_URL` values are correct in your `.env` files.
-- [ ] Run `yarn dev` to start your development server
+## Give it a Whirl
 
-## Complete a Bison workflow
+Install dependencies, set up the app, and run it.
 
-While not a requirement, Bison works best when you start development with the database and API layer.
-We will illustrate how to use this by adding the concept of an organization to our app.
-The workflow below assumes you already have `yarn dev` running.
+```
+yarn
+yarn db:setup
+yarn dev
+```
 
-### The Database
+Navigate to the auth page as if you were redirected there by another app. Here, you can use this link: http://localhost:3000/auth?response_type=code&client_id=test-client&redirect_uri=http://example.org/cb&scope=email&state=testing1234
 
-Bison uses Prisma for database operations. We've added a few conveniences around the default Prisma
-setup, but if you're familiar with Prisma, you're familiar with databases in Bison.
+After you sign up and authorize the app, it should redirect you. Grab the `code` URL param and use it in a POST request to this URL: http://localhost:3000/token You can use this body:
 
-- [ ] Define an Organization table in `prisma/schema.prisma`.
-
-We suggest copying the `id`, `createdAt` and `updatedAt` fields from the `User` model.
-
-```prisma
-model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  users     User[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+```json
+{
+    "grant_type":"authorization_code",
+    "code":"YOUR CODE HERE",
+    "redirect_uri":"http://example.org/cb",
+    "client_id":"test-client",
+    "client_secret":"super-secret"
 }
 ```
 
-If you use VSCode and have the [Prisma extension](https://marketplace.visualstudio.com/items?itemName=Prisma.prisma)
-installed, saving the file should automatically add the inverse relationship to the `User` model!
+That will give you an auth token, which you can then use in the `Authorization` header when making a request to `http://localhost:3000/api/auth/me`.
 
-```prisma
-model User {
-  id             String        @id @default(cuid())
-  email          String        @unique
-  password       String
-  roles          Role[]
-  profile        Profile?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  organizationId String?
-}
-```
-
-- [ ] Generate a migration with `yarn g:migration`.
-
-You should see a new folder in `prisma/migrations`.
-
-- [ ] Migrate the database with `yarn db:migrate`
-
-For more on Prisma, [view the docs](https://www.prisma.io/docs/).
-
-### The tRPC API
-
-With the database changes complete, we need to decide what types, queries,
-and mutations to expose in our tRPC API.
-
-Bison uses [tRPC](https://trpc.io) to create an end-to-end typed API which you can easily use
-throughout your app. The [HTTP specification](https://trpc.io/docs/v10/rpc) is simple enough that
-you can easily query the API from third-party apps as well, though any apps outside of your app's
-monorepo lose the benefit of end-to-end type safety.
-
-tRPC organizes its API using routers and procedures. Here's how to create a new router.
-
-- [ ] Create a new Router module using `yarn g:trpc organization`
-- [ ] Edit the new module to reflect what you want to expose via the API. Be as granular as you want
-  with the query and mutation procedures.
-
-We'll use [zod](https://github.com/colinhacks/zod) to ensure type safety for our inputs and
-the `t` utility provided by tRPC to create our routers. We use the `protectedProcedure` for
-procedures that require users to be logged in and `adminProcedure` for procedures that require
-the `ADMIN` role. Unprotected procedures can be added with `t.procedure`.
-
-<details>
-  <summary>File: ./server/routers/organization.ts</summary>
-
-  ```ts
-  import { Prisma } from '@prisma/client';
-  import { z } from 'zod';
-
-  import { defaultUserSelect } from './user';
-
-  import { BisonError, t } from '@/server/trpc';
-  import { protectedProcedure } from '@/server/middleware/auth';
-
-  // Organization default selection
-  export const defaultOrganizationSelect = Prisma.validator<Prisma.OrganizationSelect>()({
-    id: true,
-    createdAt: true,
-    updatedAt: true,
-    name: true,
-    users: { select: defaultUserSelect },
-  });
-
-  export const organizationRouter = t.router({
-    findMany: protectedProcedure
-      .input(
-        z.object({
-          where: z.object({ name: z.string().optional() }).optional(),
-          orderBy: z
-            .object({ name: z.enum(['asc', 'desc']) })
-            .array()
-            .optional(),
-        })
-      )
-      .query(async ({ ctx, input }) => {
-        const { where = {}, orderBy = [] } = input;
-        return await ctx.db.organization.findMany({
-          where,
-          orderBy,
-          select: defaultOrganizationSelect,
-        });
-      }),
-    find: protectedProcedure
-      .input(z.object({ where: z.object({ id: z.string() }) }))
-      .query(async ({ ctx, input }) => {
-        const { where } = input;
-        return ctx.prisma.organization.findUnique({
-          where,
-          select: defaultOrganizationSelect,
-        });
-      }),
-    create: protectedProcedure
-      .input(z.object({ data: z.object({ name: z.string() }) }))
-      .mutation(async ({ ctx, input }) => {
-        const { data } = input;
-        return await ctx.db.organization.create({
-          data: { ...data, users: { connect: [{ id: ctx.user.id }] } },
-          select: defaultOrganizationSelect,
-        });
-      }),
-    update: protectedProcedure
-      .input(
-        z.object({
-          where: z.object({ id: z.string() }),
-          data: z.object({ name: z.string() }),
-        })
-      )
-      .mutation(async ({ ctx, input }) => {
-        const { where, data } = input;
-
-        const organization = await ctx.db.organization.findFirst({
-          where: { id: where.id, users: { some: { id: ctx.user.id } } },
-        });
-
-        if (!organization) {
-          throw new BisonError({
-            code: 'FORBIDDEN',
-            message: 'You are not allowed to edit this organization.',
-          });
-        }
-
-        return await ctx.db.organization.update({ where, data, select: defaultOrganizationSelect });
-      }),
-  });
-
-
-  ```
-
-</details>
-
-> **Where are my types?**
->
-> tRPC doesn't require type code generation - all of the types are inferred using the router and
-> procedure definitions. This means you don't have to run a separate process to watch for changes
-> to your schema to generate types.
-
-### API Request Tests
-
-Let's confirm the API changes using a request test. To do this:
-
-- [ ] Generate a new factory: `yarn g:test:factory organization`
-- [ ] Add a default value for organization name in the `build` function. You can use any of the
-    methods from the [`chance` library](https://chancejs.com).
-
-```ts
-export const OrganizationFactory = {
-  build: (attrs: Partial<Prisma.OrganizationCreateInput> = {}) => {
-    return {
-      name: chance.company(), // <-- add this
-      ...attrs,
-    };
-  },
-// ...
-```
-
-- [ ] Generate a new API request test: `yarn g:test:request createOrganization`
-- [ ] Update the API request test to call the new mutation and ensure that we get an error if not
-  logged in. TypeScript can help you make sure you get the right inputs for the procedures.
-
-Here we use inline snapshots to confirm the error message content,
-but you can also manually assert the content.
-
-```ts
-import { UserFactory } from '../factories';
-
-import { trpcRequest, resetDB, disconnect } from '@/tests/helpers';
-
-beforeEach(async () => resetDB());
-afterAll(async () => disconnect());
-
-describe('create mutation', () => {
-  it('returns an error if not logged in', async () => {
-    const variables = { data: { name: 'Cool Company' } };
-
-    await expect(
-      trpcRequest().organization.create(variables)
-    ).rejects.toThrowErrorMatchingInlineSnapshot(`"UNAUTHORIZED"`);
-  });
-});
-
-```
-
-- [ ] Add a new test to confirm that the organization user is set to the current user
-
-```ts
-describe('as a user', () => {
-  it('sets the user to the logged in user', async () => {
-    const user = await UserFactory.create();
-    const variables = { data: { name: 'Cool Company' } };
-
-    const { name, users } = await trpcRequest(user).organization.create(variables);
-
-    expect(name).toEqual('Cool Company');
-    expect(users[0].id).toEqual(user.id);
-  });
-});
-```
-
-### Add a Frontend page and form that creates an organization
-
-Now that we have the API finished, we can move to the frontend changes.
-
-- [ ] Create a new page to create organizations: `yarn g:page organizations/new`
-- [ ] Create an `OrganizationForm` component: `yarn g:component OrganizationForm`
-- [ ] Add a simple form with a name input. See the [React Hook Form docs](https://react-hook-form.com)
-  for detailed information.
-- [ ] Use tRPC to call the create organization mutation.
-
-```tsx
-import { useForm } from 'react-hook-form';
-
-interface OrganizationFormData {
-  name: string;
-}
-
-export function OrganizationForm() {
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<OrganizationFormData>();
-
-  const createMutation = trpc.organization.create.useMutation();
-
-  async function onSubmit(data: OrganizationFormData) {
-    createMutation.mutate(data);
-  }
-
-  return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <input {...register('name', { required: true })} />
-      {errors.name && <span>This field is required</span>}
-
-      <input type="submit" />
-    </form>
-  );
-}
-```
-
-- [ ] Update the form to use Chakra components
-
-```tsx
-import { Button, FormControl, FormLabel, Input } from '@chakra-ui/react';
-import { useForm } from 'react-hook-form';
-
-import { ErrorText } from './ErrorText';
-
-export function OrganizationForm() {
-  // ...
-
-  return (
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <FormControl id="name">
-        <FormLabel htmlFor="name">Name</FormLabel>
-        <Input type="text" {...register('name', { required: true })} isInvalid={!!errors.name} />
-        <ErrorText>{errors.name && errors.name.message}</ErrorText>
-      </FormControl>
-
-      <Button type="submit" marginTop={8} width="full">
-        Submit
-      </Button>
-    </form>
-  );
-}
-
-```
-
-- [ ] Attach the mutations loading state to the button loading state
-
-```tsx
-<Button type="submit" marginTop={8} width="full" isLoading={createMutation.isLoading}>
-  Submit
-</Button>
-```
-
-You should now have a fully working form that creates a new database entry on submit!
-
-### Adding a new page that shows the organization
-
-- [ ] Generate a new page: `yarn g:page "organizations/[:id]"`. This uses the dynamic page capability
-  of Next.js.
-- [ ] Add a new "cell" to fetch data. While not required, it keeps things clean. `yarn g:cell Organization`
-- [ ] Add a prop to the cell for `organizationId` and pass the value to a tRPC `useQuery` call.
-- [ ] Update the `Success` component to take the proper return type of the query, but make it NonNullable.
-- [ ] Only render the `Success` component if `data` is present.
-
-```tsx
-import { Spinner, Text } from '@chakra-ui/react';
-
-import { trpc, inferQueryOutput } from '@/utils/trpc';
-
-export const Loading = () => <Spinner />;
-export const Error = () => <Text>Error. See dev tools.</Text>;
-export const Empty = () => <Text>No data.</Text>;
-
-export const Success = (
-  organization: NonNullable<inferQueryOutput<'organization', 'find'>>
-) => {
-  return <Text>Awesome! {organization.name}</Text>;
-};
-
-export const OrganizationCell = ({ organizationId }: { organizationId: string }) => {
-  const { data, isLoading, isError } = trpc.organization.find.useQuery({
-    where: { id: organizationId },
-  });
-
-  if (isLoading) return <Loading />;
-  if (isError) return <Error />;
-  if (data) return <Success {...data} />;
-
-  return <Empty />;
-};
-```
-
-- [ ] Add the Cell to the organization page:
-
-```tsx
-import Head from 'next/head';
-import { Flex } from '@chakra-ui/react';
-import { useRouter } from 'next/router';
-
-import { OrganizationCell } from '@/cells/Organization';
-
-function OrganizationPage() {
-  const router = useRouter();
-  const { id } = router.query;
-
-  return (
-    <>
-      <Head>
-        <title>An organization</title>
-      </Head>
-
-      <Flex direction={{ base: 'column', lg: 'row' }}>
-        <OrganizationCell organizationId={id} />
-      </Flex>
-    </>
-  );
-}
-
-export default OrganizationPage;
-```
-
-## Congrats
-
-Outside of e2e tests, you've used just about every feature in Bison. But don't worry.
-We've got your back there too.
-
-Bonus:
-
-- [ ] View the login and logout e2e tests
-
-# Deploy
-
-## Heroku Setup
-
-[https://heroku.com](https://heroku.com)
-
-- [Creating a Staging/Prod Pipeline](https://devcenter.heroku.com/articles/pipelines)
-- [Managing Add-Ons](https://devcenter.heroku.com/articles/add-ons)
-- [Heroku Postgres](https://devcenter.heroku.com/articles/heroku-postgresql)
-- [Setting up Preview Deploys (review apps)](https://devcenter.heroku.com/articles/github-integration-review-apps)
+Tada! You just manually completed an OAuth sign in flow. Congrats!

@@ -77,7 +77,11 @@ export function SignUpForm() {
       if (ok && redirectUrl) {
         toast({ status: 'success', isClosable: true, title: `Welcome, ${firstName}!` });
 
-        return router.push('/');
+        return router.push(
+          typeof router.query.return_url === 'string'
+            ? decodeURIComponent(router.query.return_url)
+            : '/'
+        );
       }
 
       return;

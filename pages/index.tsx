@@ -4,7 +4,7 @@ import { GetServerSideProps } from 'next';
 
 import { translator } from '@/utils/i18n-translator';
 import { getServerAuthSession } from '@/utils/getDefaultServerSideProps';
-
+import { AppWithAuth } from '@/components/AppWithAuth';
 type PageProps = {
   welcomeMessage: string;
 };
@@ -16,12 +16,13 @@ function Home({ welcomeMessage }: PageProps) {
         <title>Home</title>
         <link rel="icon" href="/favicon.ico" />
       </Head>
-
-      <Center>
-        <Heading size="lg" data-testid="welcome-header">
-          {welcomeMessage}
-        </Heading>
-      </Center>
+      <AppWithAuth>
+        <Center>
+          <Heading size="lg" data-testid="welcome-header">
+            {welcomeMessage}
+          </Heading>
+        </Center>
+      </AppWithAuth>
     </>
   );
 }
